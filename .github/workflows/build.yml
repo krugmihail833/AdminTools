@@ -96,7 +96,7 @@ jobs:
           private val TABLE = """
           2.1 ОП|оск. игрока|mute 15-30
           2.1 ОП|упом. род|mute 90-180
-          2.1 ОП|оск. род|ban 3-10
+          2.1 ОП|оск. род|ban 7
           3.1 ОП|оффтоп в реп|rmute 30
           3.2 ОП|оск. адм|mute 30-60 / ban 3-31
           2.5 ОП|шум в микро|mute 20
@@ -139,38 +139,40 @@ jobs:
               "warn" to "/warn {id} {r}"
           )
 
-          val DEF_ANS = """
-          re|Приветствую, приятной игры на Grand Mobile 10 <3
-          re|Приветствую, слежу за Вами.
-          re|Приветствую, не владеем данной информацией.
-          re|Приветствую, при следующем оффтопе последует мут репорта.
-          re|Приветствую, при наличии доказательств подайте жалобу.
-          re|Приветствую, не чиним, воспользуйтесь рем.комплектом/эвакуатором.
-          re|Приветствую, уточните ваш вопрос или жалобу.
-          re|Приветствую, слежу за игроком.
-          re|Приветствую, не вмешиваемся в РП процесс.
-          re|Приветствую, не чиним / не заправляем / не выдаем / не телепортируем.
-          re|Приветствую, если не согласны с наказанием, напишите жалобу.
-          re|Приветствую, рп термин.
-          re|Приветствую, нашли баг? обратитесь в тех.поддержку.
-          re|Приветствую, ожидайте.
-          re|Приветствую, не предоставляем данную услугу.
-          re|Приветствую, можете узнать самостоятельно.
-          re|Приветствую, помогли Вам. Приятной игры!<3
-          re|Приветствую, слежу за игроком!
-          ev|Приветствую, можете помочь себе сами — кнопка эвакуатора на спидометре.
-          ev|Приветствую, можете воспользоваться эвакуатором — кнопка на спидометре.
-          ev|Приветствую, нажмите кнопку эвакуатора на спидометре для помощи.
-          ev|Приветствую, чтобы перевернуть автомобиль, нажмите кнопку эвакуатора на спидометре.
-          ev|Приветствую, чтобы починить автомобиль, нажмите кнопку эвакуатора на спидометре.
-          ev|Приветствую, чтобы выбраться из воды, нажмите кнопку эвакуатора на спидометре.
-          ev|Здравствуйте, Вы можете помочь себе самостоятельно, нажав кнопку эвакуатора на спидометре.
-          rev|Приветствую, игрок был наказан, приятной игры!
-          rev|Приветствую, за спам и флуд в чате наказания не выдаем!
-          rev|Приветствую, администрация не является гарантом обмена.
-          rev|Приветствую, телепорт на мероприятие закрыт.
-          rev|Приветствую, игрок не нарушает.
-          rev|Приветствую, за время наблюдения нарушений не зафиксировано.
+          val DEF_BEGIN = """
+          Приветствую, приятной игры на Grand Mobile 10 <3
+          Приветствую, слежу за Вами.
+          Приветствую, не владеем данной информацией.
+          Приветствую, при следующем оффтопе последует мут репорта.
+          Приветствую, при наличии доказательств подайте жалобу.
+          Приветствую, не чиним, воспользуйтесь рем.комплектом/эвакуатором.
+          Приветствую, уточните ваш вопрос или жалобу.
+          Приветствую, слежу за игроком.
+          Приветствую, не вмешиваемся в РП процесс.
+          Приветствую, не чиним / не заправляем / не выдаем / не телепортируем.
+          Приветствую, если не согласны с наказанием, напишите жалобу.
+          Приветствую, рп термин.
+          Приветствую, нашли баг? обратитесь в тех.поддержку.
+          Приветствую, ожидайте.
+          Приветствую, не предоставляем данную услугу.
+          Приветствую, можете узнать самостоятельно.
+          Приветствую, можете помочь себе сами — кнопка эвакуатора на спидометре.
+          Приветствую, можете воспользоваться эвакуатором — кнопка на спидометре.
+          Приветствую, нажмите кнопку эвакуатора на спидометре для помощи.
+          Приветствую, чтобы перевернуть автомобиль, нажмите кнопку эвакуатора на спидометре.
+          """.trimIndent()
+
+          val DEF_END = """
+          Приветствую, игрок был наказан, приятной игры!
+          Приветствую, за спам и флуд в чате наказания не выдаем!
+          Приветствую, администрация не является гарантом обмена.
+          Приветствую, телепорт на мероприятие закрыт.
+          Приветствую, игрок не нарушает.
+          Приветствую, за время наблюдения нарушений не зафиксировано.
+          Приветствую, помогли Вам. Приятной игры!<3
+          Приветствую, чтобы починить автомобиль, нажмите кнопку эвакуатора на спидометре.
+          Приветствую, чтобы выбраться из воды, нажмите кнопку эвакуатора на спидометре.
+          Здравствуйте, Вы можете помочь себе самостоятельно, нажав кнопку эвакуатора на спидометре.
           """.trimIndent()
 
           val DEF_CMDS = """
@@ -199,13 +201,12 @@ jobs:
           class Store(c: Context) {
               private val p = c.getSharedPreferences("s", Context.MODE_PRIVATE)
               fun templates(): Map<String, String> = DEF_T.mapValues { p.getString("t_" + it.key, it.value) ?: it.value }
-              fun answersText(): String = p.getString("ans", DEF_ANS) ?: DEF_ANS
+              fun beginText(): String = p.getString("begin", DEF_BEGIN) ?: DEF_BEGIN
+              fun endText(): String = p.getString("end", DEF_END) ?: DEF_END
+              private fun clean(t: String): List<String> = t.lines().map { it.trim() }.filter { it.isNotEmpty() }
+              fun begins(): List<String> = clean(beginText())
+              fun ends(): List<String> = clean(endText())
               fun cmdsText(): String = p.getString("cmds", DEF_CMDS) ?: DEF_CMDS
-              private fun parse(s: String): List<Pair<String, String>> = s.lines().mapNotNull { l ->
-                  val i = l.indexOf('|')
-                  if (i < 1 || i == l.length - 1) null else l.substring(0, i).trim() to l.substring(i + 1).trim()
-              }
-              fun answers(): List<Pair<String, String>> = parse(answersText())
               // строка команды: «/sp {id}» или «название|/sp {id}»; без названия на кнопке будет сама команда
               fun cmds(): List<Pair<String, String>> = cmdsText().lines().map { it.trim() }.filter { it.isNotEmpty() }.map { l ->
                   val i = l.indexOf('|')
@@ -214,10 +215,10 @@ jobs:
               }
               fun count(): Int = p.getInt("cnt", 0)
               fun setCount(n: Int) { p.edit().putInt("cnt", n).apply() }
-              fun save(t: Map<String, String>, a: String, c: String) {
+              fun save(t: Map<String, String>, b: String, n: String, c: String) {
                   val e = p.edit()
                   t.forEach { (k, v) -> e.putString("t_$k", v) }
-                  e.putString("ans", a).putString("cmds", c).apply()
+                  e.putString("begin", b).putString("end", n).putString("cmds", c).apply()
               }
               fun reset() { val n = p.getInt("cnt", 0); p.edit().clear().putInt("cnt", n).apply() }
           }
@@ -236,6 +237,7 @@ jobs:
           import android.view.View
           import android.view.ViewGroup
           import android.view.inputmethod.EditorInfo
+          import android.view.inputmethod.InputConnection
           import android.view.inputmethod.InputMethodManager
           import android.widget.Button
           import android.widget.LinearLayout
@@ -261,19 +263,24 @@ jobs:
 
           class AdminKeyboard : InputMethodService() {
               private val st by lazy { Store(this) }
+              private lateinit var main: LinearLayout
+              private lateinit var lp: LinearLayout
               private lateinit var list: LinearLayout
               private lateinit var idTv: TextView
               private val tabs = ArrayList<Button>()
               private var compact = false
               private var tab = 0
               private var open = -1
-              private var grp = ""
               private val id = StringBuilder()
               private var tpl: Map<String, String> = DEF_T
-              private var ans: List<Pair<String, String>> = emptyList()
+              private var begins: List<String> = emptyList()
+              private var ends: List<String> = emptyList()
               private var cmds: List<Pair<String, String>> = emptyList()
               private var count = 0
-              private var pendingAnswer = false
+              private var pmFlag = false
+              private var letters = false
+              private var ru = true
+              private var shift = false
 
               private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
               private val unit get() = if (compact) 35 else 42
@@ -298,9 +305,10 @@ jobs:
                   setTextColor(if (col == ACC || col == SEND) DARK else TXT); background = bg(col)
                   stateListAnimator = null
                   minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
-                  setPadding(dp(6), 0, dp(6), 0)
+                  if (h == -1) minimumHeight = dp(44)
+                  setPadding(dp(4), if (h == -1) dp(6) else 0, dp(4), if (h == -1) dp(6) else 0)
                   gravity = if (left) Gravity.START or Gravity.CENTER_VERTICAL else Gravity.CENTER
-                  layoutParams = LinearLayout.LayoutParams(0, dp(if (h == 0) unit else h), w)
+                  layoutParams = LinearLayout.LayoutParams(0, if (h == -1) ViewGroup.LayoutParams.WRAP_CONTENT else dp(if (h == 0) unit else h), w)
                       .apply { setMargins(dp(2), dp(1), dp(2), dp(1)) }
                   setOnClickListener { click() }
               }
@@ -326,28 +334,57 @@ jobs:
                   return s
               }
 
-              private fun commit(s: String) { pendingAnswer = false; currentInputConnection?.commitText(s, 1) }
+              private fun commit(s: String) { currentInputConnection?.commitText(s, 1) }
 
-              // одно нажатие = одна отправка; ответ игроку после отправки прибавляет 1 к счётчику
+              private fun deleteBack() {
+                  val ic = currentInputConnection ?: return
+                  ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
+                  ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
+              }
+
+              // ---------- счётчик: считаются все сообщения, начинающиеся с /pm ----------
+              private fun fieldText(ic: InputConnection): String =
+                  (ic.getTextBeforeCursor(2000, 0)?.toString() ?: "") + (ic.getTextAfterCursor(2000, 0)?.toString() ?: "")
+
+              private fun isPm(t: String): Boolean = t.trimStart().startsWith("/pm ", ignoreCase = true)
+
+              private fun countOne() {
+                  count += 1
+                  st.setCount(count)
+                  updateTabs()
+              }
+
+              // нажатие «Отправить» на сообщении с /pm считается сразу
               private fun sendEnter() {
                   val ic = currentInputConnection ?: return
+                  val wasPm = isPm(fieldText(ic))
                   // false: выполнить действие поля, даже если оно помечено «Enter = новая строка»
                   if (!sendDefaultEditorAction(false)) {
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
                   }
-                  if (pendingAnswer) {
-                      count += 1
-                      st.setCount(count)
-                      pendingAnswer = false
-                      updateTabs()
+                  if (wasPm) { pmFlag = false; countOne() }
+              }
+
+              // если /pm-сообщение исчезло из поля целиком (отправили кнопкой самой игры), тоже считаем
+              override fun onUpdateSelection(
+                  oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int,
+                  candidatesStart: Int, candidatesEnd: Int
+              ) {
+                  super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+                  val ic = currentInputConnection ?: return
+                  val txt = fieldText(ic)
+                  if (txt.isEmpty()) {
+                      if (pmFlag) { pmFlag = false; countOne() }
+                  } else {
+                      pmFlag = isPm(txt)
                   }
               }
 
               // стирает всё, что написано в поле ввода (не только вставленное клавиатурой)
               private fun clearAll() {
                   val ic = currentInputConnection ?: return
-                  pendingAnswer = false
+                  pmFlag = false
                   ic.beginBatchEdit()
                   ic.performContextMenuAction(android.R.id.selectAll)
                   ic.commitText("", 1)
@@ -355,10 +392,15 @@ jobs:
                   ic.endBatchEdit()
               }
 
-              private fun reload() { tpl = st.templates(); ans = st.answers(); cmds = st.cmds(); count = st.count() }
+              private fun reload() { tpl = st.templates(); begins = st.begins(); ends = st.ends(); cmds = st.cmds(); count = st.count() }
 
               private fun updateTabs() {
                   if (tabs.size > 1) tabs[1].text = "Ответы  " + count
+              }
+
+              private fun switchSystemKeyboard() {
+                  val ok = if (Build.VERSION.SDK_INT >= 28) switchToPreviousInputMethod() else false
+                  if (!ok) (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
               }
 
               override fun onCreateInputView(): View {
@@ -369,6 +411,9 @@ jobs:
                       setBackgroundColor(BG)
                       setPadding(dp(4), dp(4), dp(4), dp(4))
                   }
+                  main = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                  lp = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+
                   tabs.clear()
                   listOf("Наказания", "Ответы", "Команды").forEachIndexed { i, n ->
                       tabs.add(btn(n, size = 14f) { setTab(i) })
@@ -380,10 +425,8 @@ jobs:
                       true
                   }
                   updateTabs()
-                  val abc = btn("ABC", w = 0.6f, size = 14f) {
-                      val ok = if (Build.VERSION.SDK_INT >= 28) switchToPreviousInputMethod() else false
-                      if (!ok) (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
-                  }
+                  // «ABC» открывает буквенную раскладку прямо внутри этой клавиатуры
+                  val abc = btn("ABC", w = 0.6f, size = 14f) { letters = true; applyMode() }
                   val send = btn("Отправить", SEND, w = 1.3f, size = 14f) { sendEnter() }
                   val erase = btn("Стереть", DANGER, w = 1.1f, size = 14f) { clearAll() }
                   idTv = TextView(this).apply {
@@ -398,29 +441,75 @@ jobs:
                   val clear = btn("C", w = 0.6f) { id.setLength(0); idChanged() }
 
                   if (compact) {
-                      root.addView(hrow(*tabs.toTypedArray(), idTv, back, clear, abc, erase, send))
+                      main.addView(hrow(*tabs.toTypedArray(), idTv, back, clear, abc, erase, send))
                   } else {
-                      root.addView(hrow(*tabs.toTypedArray(), abc))
-                      root.addView(hrow(idTv, back, clear, erase, send))
+                      main.addView(hrow(*tabs.toTypedArray(), abc))
+                      main.addView(hrow(idTv, back, clear, erase, send))
                   }
-                  root.addView(hrow(*"1234567890".map { c ->
+                  main.addView(hrow(*"1234567890".map { c ->
                       btn(c.toString(), h = unit - 2) { if (id.length < 7) id.append(c); idChanged() }
                   }.toTypedArray()))
 
                   list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                   val sv = ScrollView(this).apply { addView(list) }
-                  root.addView(sv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (compact) 104 else 150)))
+                  main.addView(sv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (compact) 104 else 150)))
 
+                  root.addView(main)
+                  root.addView(lp)
                   idChanged()
                   setTab(tab)
+                  applyMode()
                   return root
               }
 
               override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
                   super.onStartInputView(info, restarting)
+                  pmFlag = false
                   if (::list.isInitialized) { reload(); updateTabs(); renderList() }
               }
 
+              private fun applyMode() {
+                  main.visibility = if (letters) View.GONE else View.VISIBLE
+                  lp.visibility = if (letters) View.VISIBLE else View.GONE
+                  if (letters) renderLetters()
+              }
+
+              // ---------- буквенная раскладка ----------
+              private fun typeText(s: String) { currentInputConnection?.commitText(s, 1) }
+
+              private fun key(c: Char): Button {
+                  val s = if (shift) c.uppercaseChar().toString() else c.toString()
+                  return btn(s, size = 18f) {
+                      typeText(s)
+                      if (shift) { shift = false; renderLetters() }
+                  }
+              }
+
+              private fun renderLetters() {
+                  lp.removeAllViews()
+                  val rows = if (ru) listOf("йцукенгшщзхъ", "фывапролджэ", "ячсмитьбюё")
+                  else listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+                  lp.addView(hrow(*"1234567890".map { c -> btn(c.toString()) { typeText(c.toString()) } }.toTypedArray()))
+                  lp.addView(hrow(*rows[0].map { key(it) }.toTypedArray()))
+                  lp.addView(hrow(*rows[1].map { key(it) }.toTypedArray()))
+                  lp.addView(hrow(
+                      btn("⇧", if (shift) ACC else SURF, w = 1.3f, size = 18f) { shift = !shift; renderLetters() },
+                      *rows[2].map { key(it) }.toTypedArray(),
+                      btn("⌫", w = 1.3f) { deleteBack() }
+                  ))
+                  lp.addView(hrow(
+                      btn("Панель", w = 1.5f, size = 14f) { letters = false; applyMode() },
+                      btn("🌐", w = 0.9f, size = 14f) { switchSystemKeyboard() },
+                      btn(if (ru) "RU" else "EN", w = 0.9f, size = 14f) { ru = !ru; renderLetters() },
+                      btn("/", w = 0.9f, size = 18f) { typeText("/") },
+                      btn("пробел", w = 2.4f, size = 14f) { typeText(" ") },
+                      btn(".", w = 0.8f, size = 18f) { typeText(".") },
+                      btn(",", w = 0.8f, size = 18f) { typeText(",") },
+                      btn("Отправить", SEND, w = 1.6f, size = 14f) { sendEnter() }
+                  ))
+              }
+
+              // ---------- основная панель ----------
               private fun idChanged() {
                   idTv.text = if (id.isEmpty()) "ID" else id.toString()
                   idTv.setTextColor(if (id.isEmpty()) HINT else TXT)
@@ -465,17 +554,24 @@ jobs:
                   }
               }
 
-              private fun answers() {
-                  val groups = listOf("") + ans.map { it.first }.distinct()
-                  list.addView(hrow(*groups.map { g ->
-                      btn(if (g.isEmpty()) "Все" else g, if (grp == g) ACC else SURF, size = 14f) { grp = g; renderList() }
-                  }.toTypedArray()))
-                  ans.filter { grp.isEmpty() || it.first == grp }.forEach { (_, text) ->
-                      list.addView(hrow(btn(text, SURF, size = 14f, h = if (compact) 50 else 60, left = true) {
-                          commit(fmt("ans", 0, text))
-                          pendingAnswer = true
-                      }))
+              // два столбца готовых фраз: «Начало» и «Конец» обслуживания репорта
+              private fun column(title: String, items: List<String>): LinearLayout {
+                  val col = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                   }
+                  col.addView(TextView(this).apply {
+                      text = title; setTextColor(HINT); textSize = 12f
+                      setPadding(dp(6), dp(2), 0, dp(2))
+                  })
+                  items.forEach { t ->
+                      col.addView(hrow(btn(t, SURF, size = 14f, h = -1, left = true) { commit(fmt("ans", 0, t)) }))
+                  }
+                  return col
+              }
+
+              private fun answers() {
+                  list.addView(hrow(column("Начало", begins), column("Конец", ends)))
               }
 
               private fun commands() {
@@ -524,9 +620,12 @@ jobs:
                   root.addView(bt("Выбрать клавиатуру") {
                       (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
                   })
-                  root.addView(tv("2. Быстрые ответы, по одному на строку: группа|текст"))
-                  val ans = EditText(this).apply { setText(st.answersText()); minLines = 8; gravity = Gravity.TOP }
-                  root.addView(ans)
+                  root.addView(tv("2. Ответы, начало репорта: по одной готовой фразе в строке"))
+                  val begins = EditText(this).apply { setText(st.beginText()); minLines = 8; gravity = Gravity.TOP }
+                  root.addView(begins)
+                  root.addView(tv("Ответы, конец репорта: по одной готовой фразе в строке"))
+                  val ends = EditText(this).apply { setText(st.endText()); minLines = 6; gravity = Gravity.TOP }
+                  root.addView(ends)
                   root.addView(tv("3. Команды, по одной на строку: /команда {id} (или название|/команда). Если ID не введён, команда вставится без номера."))
                   val cmds = EditText(this).apply { setText(st.cmdsText()); minLines = 5; gravity = Gravity.TOP }
                   root.addView(cmds)
@@ -538,7 +637,7 @@ jobs:
                   fields.forEach { (k, e) -> root.addView(tv(k)); root.addView(e) }
                   root.addView(bt("Сохранить") {
                       val t = fields.mapValues { en -> en.value.text.toString().ifBlank { DEF_T.getValue(en.key) } }
-                      st.save(t, ans.text.toString(), cmds.text.toString())
+                      st.save(t, begins.text.toString(), ends.text.toString(), cmds.text.toString())
                       Toast.makeText(this, "Сохранено", Toast.LENGTH_SHORT).show()
                   })
                   root.addView(bt("Сбросить всё") { st.reset(); recreate() })
