@@ -247,6 +247,7 @@ jobs:
           private val TXT = 0xFFF6E9DA.toInt()
           private val DARK = 0xFF2A1A10.toInt()
           private val HINT = 0xFF8C7767.toInt()
+          private val DANGER = 0xFF6E2B25.toInt()
           private val TINT = mapOf(
               "jail" to 0xFF5E4313.toInt(), "ban" to 0xFF6E2B25.toInt(),
               "mute" to 0xFF35503F.toInt(), "rmute" to 0xFF35503F.toInt(), "warn" to 0xFF5A3558.toInt()
@@ -322,10 +323,21 @@ jobs:
               // одно нажатие = одна отправка (как клавиша Enter)
               private fun sendEnter() {
                   val ic = currentInputConnection ?: return
-                  if (!sendDefaultEditorAction(true)) {
+                  // false: выполнить действие поля, даже если оно помечено «Enter = новая строка»
+                  if (!sendDefaultEditorAction(false)) {
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
                   }
+              }
+
+              // стирает всё, что написано в поле ввода (не только вставленное клавиатурой)
+              private fun clearAll() {
+                  val ic = currentInputConnection ?: return
+                  ic.beginBatchEdit()
+                  ic.performContextMenuAction(android.R.id.selectAll)
+                  ic.commitText("", 1)
+                  ic.deleteSurroundingText(10000, 10000)
+                  ic.endBatchEdit()
               }
 
               private fun reload() { tpl = st.templates(); ans = st.answers(); cmds = st.cmds() }
@@ -347,22 +359,23 @@ jobs:
                       if (!ok) (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
                   }
                   val send = btn("Отправить", SEND, w = 1.3f, size = 13f) { sendEnter() }
+                  val erase = btn("Стереть", DANGER, w = 1.1f, size = 13f) { clearAll() }
                   idTv = TextView(this).apply {
                       setTextColor(TXT); textSize = if (compact) 15f else 17f; typeface = Typeface.MONOSPACE
                       gravity = Gravity.CENTER_VERTICAL
                       setPadding(dp(12), 0, dp(12), 0)
                       background = GradientDrawable().apply { setColor(FIELD); setStroke(dp(1), LINE); cornerRadius = dp(8).toFloat() }
-                      layoutParams = LinearLayout.LayoutParams(0, dp(unit), if (compact) 1.4f else 2.4f)
+                      layoutParams = LinearLayout.LayoutParams(0, dp(unit), if (compact) 1.4f else 1.6f)
                           .apply { setMargins(dp(2), dp(1), dp(2), dp(1)) }
                   }
                   val back = btn("⌫", w = 0.6f) { if (id.isNotEmpty()) id.deleteCharAt(id.length - 1); idChanged() }
                   val clear = btn("C", w = 0.6f) { id.setLength(0); idChanged() }
 
                   if (compact) {
-                      root.addView(hrow(*tabs.toTypedArray(), idTv, back, clear, abc, send))
+                      root.addView(hrow(*tabs.toTypedArray(), idTv, back, clear, abc, erase, send))
                   } else {
                       root.addView(hrow(*tabs.toTypedArray(), abc))
-                      root.addView(hrow(idTv, back, clear, send))
+                      root.addView(hrow(idTv, back, clear, erase, send))
                   }
                   root.addView(hrow(*"1234567890".map { c ->
                       btn(c.toString(), h = unit - 4) { if (id.length < 7) id.append(c); idChanged() }
