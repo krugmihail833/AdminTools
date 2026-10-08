@@ -221,13 +221,13 @@ jobs:
           package com.grandmobile.admintools
 
           import android.content.res.ColorStateList
-          import android.graphics.Color
           import android.graphics.Typeface
           import android.graphics.drawable.GradientDrawable
           import android.graphics.drawable.RippleDrawable
           import android.inputmethodservice.InputMethodService
           import android.os.Build
           import android.view.Gravity
+          import android.view.KeyEvent
           import android.view.View
           import android.view.ViewGroup
           import android.view.inputmethod.EditorInfo
@@ -237,14 +237,19 @@ jobs:
           import android.widget.ScrollView
           import android.widget.TextView
 
-          private val BG = 0xFF0F1220.toInt()
-          private val SURF = 0xFF1B2037.toInt()
-          private val FIELD = 0xFF151A2E.toInt()
-          private val ACC = 0xFF5B6CFF.toInt()
-          private val TXT = 0xFFE9EBF5.toInt()
+          // тёплая палитра: эспрессо, крем, янтарь и терракота
+          private val BG = 0xFF1C1512.toInt()
+          private val SURF = 0xFF2E2420.toInt()
+          private val FIELD = 0xFF241B17.toInt()
+          private val LINE = 0xFF43352D.toInt()
+          private val ACC = 0xFFF2A33A.toInt()
+          private val SEND = 0xFFE8743B.toInt()
+          private val TXT = 0xFFF6E9DA.toInt()
+          private val DARK = 0xFF2A1A10.toInt()
+          private val HINT = 0xFF8C7767.toInt()
           private val TINT = mapOf(
-              "jail" to 0xFF4A3410.toInt(), "ban" to 0xFF4A1E1E.toInt(),
-              "mute" to 0xFF1B3358.toInt(), "rmute" to 0xFF1B3358.toInt(), "warn" to 0xFF3A2A5C.toInt()
+              "jail" to 0xFF5E4313.toInt(), "ban" to 0xFF6E2B25.toInt(),
+              "mute" to 0xFF35503F.toInt(), "rmute" to 0xFF35503F.toInt(), "warn" to 0xFF5A3558.toInt()
           )
 
           class AdminKeyboard : InputMethodService() {
@@ -252,6 +257,7 @@ jobs:
               private lateinit var list: LinearLayout
               private lateinit var idTv: TextView
               private val tabs = ArrayList<Button>()
+              private var compact = false
               private var tab = 0
               private var open = -1
               private var grp = ""
@@ -261,23 +267,32 @@ jobs:
               private var cmds: List<Pair<String, String>> = emptyList()
 
               private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+              private val unit get() = if (compact) 32 else 38
+
+              override fun onEvaluateFullscreenMode(): Boolean = false
 
               private fun bg(col: Int): RippleDrawable {
-                  val g = GradientDrawable().apply { setColor(col); cornerRadius = dp(10).toFloat() }
+                  val g = when (col) {
+                      ACC -> GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xFFF5B342.toInt(), 0xFFEE8F3A.toInt()))
+                      SEND -> GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xFFEE7A45.toInt(), 0xFFD9553A.toInt()))
+                      else -> GradientDrawable().apply { setColor(col); setStroke(dp(1), LINE) }
+                  }
+                  g.cornerRadius = dp(8).toFloat()
                   return RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), g, null)
               }
 
               private fun btn(
-                  t: String, col: Int = SURF, w: Float = 1f, size: Float = 14f, h: Int = 40,
+                  t: String, col: Int = SURF, w: Float = 1f, size: Float = 14f, h: Int = 0,
                   left: Boolean = false, click: () -> Unit
               ): Button = Button(this).apply {
-                  text = t; isAllCaps = false; textSize = size
-                  setTextColor(TXT); background = bg(col)
+                  text = t; isAllCaps = false; textSize = if (compact) size - 1f else size
+                  setTextColor(if (col == ACC || col == SEND) DARK else TXT); background = bg(col)
                   stateListAnimator = null
                   minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
-                  setPadding(dp(8), 0, dp(8), 0)
+                  setPadding(dp(6), 0, dp(6), 0)
                   gravity = if (left) Gravity.START or Gravity.CENTER_VERTICAL else Gravity.CENTER
-                  layoutParams = LinearLayout.LayoutParams(0, dp(h), w).apply { setMargins(dp(2), dp(2), dp(2), dp(2)) }
+                  layoutParams = LinearLayout.LayoutParams(0, dp(if (h == 0) unit else h), w)
+                      .apply { setMargins(dp(2), dp(1), dp(2), dp(1)) }
                   setOnClickListener { click() }
               }
 
@@ -304,14 +319,24 @@ jobs:
 
               private fun commit(s: String) { currentInputConnection?.commitText(s, 1) }
 
+              // одно нажатие = одна отправка (как клавиша Enter)
+              private fun sendEnter() {
+                  val ic = currentInputConnection ?: return
+                  if (!sendDefaultEditorAction(true)) {
+                      ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+                      ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+                  }
+              }
+
               private fun reload() { tpl = st.templates(); ans = st.answers(); cmds = st.cmds() }
 
               override fun onCreateInputView(): View {
                   reload()
+                  compact = resources.configuration.screenHeightDp < 480
                   val root = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
                       setBackgroundColor(BG)
-                      setPadding(dp(6), dp(6), dp(6), dp(6))
+                      setPadding(dp(4), dp(4), dp(4), dp(4))
                   }
                   tabs.clear()
                   listOf("Наказания", "Ответы", "Команды").forEachIndexed { i, n ->
@@ -321,27 +346,31 @@ jobs:
                       val ok = if (Build.VERSION.SDK_INT >= 28) switchToPreviousInputMethod() else false
                       if (!ok) (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
                   }
-                  root.addView(hrow(*tabs.toTypedArray(), abc))
-
+                  val send = btn("Отправить", SEND, w = 1.3f, size = 13f) { sendEnter() }
                   idTv = TextView(this).apply {
-                      setTextColor(TXT); textSize = 17f; typeface = Typeface.MONOSPACE
+                      setTextColor(TXT); textSize = if (compact) 15f else 17f; typeface = Typeface.MONOSPACE
                       gravity = Gravity.CENTER_VERTICAL
-                      setPadding(dp(14), 0, dp(14), 0)
-                      background = GradientDrawable().apply { setColor(FIELD); cornerRadius = dp(10).toFloat() }
-                      layoutParams = LinearLayout.LayoutParams(0, dp(40), 2.4f).apply { setMargins(dp(2), dp(2), dp(2), dp(2)) }
+                      setPadding(dp(12), 0, dp(12), 0)
+                      background = GradientDrawable().apply { setColor(FIELD); setStroke(dp(1), LINE); cornerRadius = dp(8).toFloat() }
+                      layoutParams = LinearLayout.LayoutParams(0, dp(unit), if (compact) 1.4f else 2.4f)
+                          .apply { setMargins(dp(2), dp(1), dp(2), dp(1)) }
                   }
-                  root.addView(hrow(
-                      idTv,
-                      btn("⌫", w = 0.6f) { if (id.isNotEmpty()) id.deleteCharAt(id.length - 1); idChanged() },
-                      btn("C", w = 0.6f) { id.setLength(0); idChanged() }
-                  ))
+                  val back = btn("⌫", w = 0.6f) { if (id.isNotEmpty()) id.deleteCharAt(id.length - 1); idChanged() }
+                  val clear = btn("C", w = 0.6f) { id.setLength(0); idChanged() }
+
+                  if (compact) {
+                      root.addView(hrow(*tabs.toTypedArray(), idTv, back, clear, abc, send))
+                  } else {
+                      root.addView(hrow(*tabs.toTypedArray(), abc))
+                      root.addView(hrow(idTv, back, clear, send))
+                  }
                   root.addView(hrow(*"1234567890".map { c ->
-                      btn(c.toString(), h = 38) { if (id.length < 7) id.append(c); idChanged() }
+                      btn(c.toString(), h = unit - 4) { if (id.length < 7) id.append(c); idChanged() }
                   }.toTypedArray()))
 
                   list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                   val sv = ScrollView(this).apply { addView(list) }
-                  root.addView(sv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(150)))
+                  root.addView(sv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (compact) 92 else 130)))
 
                   idChanged()
                   setTab(tab)
@@ -355,13 +384,16 @@ jobs:
 
               private fun idChanged() {
                   idTv.text = if (id.isEmpty()) "ID" else id.toString()
-                  idTv.setTextColor(if (id.isEmpty()) 0xFF6B7294.toInt() else TXT)
+                  idTv.setTextColor(if (id.isEmpty()) HINT else TXT)
                   if (::list.isInitialized) renderList()
               }
 
               private fun setTab(t: Int) {
                   tab = t; open = -1
-                  tabs.forEachIndexed { i, b -> b.background = bg(if (i == t) ACC else SURF) }
+                  tabs.forEachIndexed { i, b ->
+                      b.background = bg(if (i == t) ACC else SURF)
+                      b.setTextColor(if (i == t) DARK else TXT)
+                  }
                   renderList()
               }
 
@@ -397,19 +429,20 @@ jobs:
               private fun answers() {
                   val groups = listOf("") + ans.map { it.first }.distinct()
                   list.addView(hrow(*groups.map { g ->
-                      btn(if (g.isEmpty()) "Все" else g, if (grp == g) ACC else SURF, size = 13f, h = 36) { grp = g; renderList() }
+                      btn(if (g.isEmpty()) "Все" else g, if (grp == g) ACC else SURF, size = 13f) { grp = g; renderList() }
                   }.toTypedArray()))
                   ans.filter { grp.isEmpty() || it.first == grp }.forEach { (_, text) ->
-                      list.addView(hrow(btn(text, SURF, size = 13f, h = 56, left = true) { commit(fmt("ans", 0, text)) }))
+                      list.addView(hrow(btn(text, SURF, size = 13f, h = if (compact) 44 else 54, left = true) { commit(fmt("ans", 0, text)) }))
                   }
               }
 
               private fun commands() {
-                  cmds.chunked(4).forEach { row ->
+                  val cols = if (compact) 8 else 4
+                  cmds.chunked(cols).forEach { row ->
                       val v = ArrayList<View>()
                       row.forEach { (name, c) -> v.add(btn(name, size = 13f) { commit(fmtCmd(c)) }) }
-                      repeat(4 - row.size) {
-                          v.add(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, dp(40), 1f) })
+                      repeat(cols - row.size) {
+                          v.add(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, dp(unit), 1f) })
                       }
                       list.addView(hrow(*v.toTypedArray()))
                   }
