@@ -94,6 +94,14 @@ jobs:
 
           // строка: код|пояснение|вариант / вариант ; в варианте действия через «+» ; срок: N или A-B
           private val TABLE = """
+          DM||jail 30-60
+          DB||jail 30
+          MG||mute 15
+          RK||jail 30
+          SK||jail 60-120
+          PG||jail 30
+          Mass DM||warn
+          Mass DM в GZ||jail 90+warn
           2.1 ОП|оск. игрока|mute 15-30
           2.1 ОП|упом. род|mute 90-180
           2.1 ОП|оск. род|ban 7
@@ -106,14 +114,6 @@ jobs:
           5.3 ОП|уход от рп|jail 120
           1.1 GZ|урон в зз|jail 60+warn
           1.2 GZ|веревка в зз|warn
-          DM||jail 30-60
-          DB||jail 30
-          MG||mute 15
-          RK||jail 30
-          SK||jail 60-120
-          PG||jail 30
-          Mass DM||warn
-          Mass DM в GZ||jail 90+warn
           """.trimIndent()
 
           object Data {
@@ -136,7 +136,9 @@ jobs:
               "ban" to "/ban {id} {t} {r}",
               "mute" to "/mute {id} {t} {r}",
               "rmute" to "/rmute {id} {t} {r}",
-              "warn" to "/warn {id} {r}"
+              "warn" to "/warn {id} {r}",
+              "spawn" to "/spawn {id}",
+              "kick" to "/kick {id} {r}"
           )
 
           val DEF_BEGIN = """
@@ -198,6 +200,43 @@ jobs:
           /weapall
           """.trimIndent()
 
+          // Правила семейных мероприятий: номер | коротко | команда | срок (минуты, 0 если не нужен)
+          class Fam(val code: String, val desc: String, val cmd: String, val t: Int)
+
+          val FAM_RULES = """
+          1.2|Краны у реки|jail|30
+          1.3|Баррикады из авто|jail|30
+          1.4|Оружие не из магазина|jail|30
+          1.5|Уход от смерти|warn|0
+          1.6|RK в порту|warn|0
+          1.7|Выход за порт|jail|30
+          1.7.1|Кемпер у въезда|warn|0
+          1.8|Вход после краша|jail|30
+          1.9|Маски|jail|30
+          1.10|Союз семей|warn|0
+          1.11|Две стартовые точки|jail|30
+          1.12|Лечение вне укрытия|jail|30
+          1.13|Сброс анимаций|jail|30
+          1.14|Заезд на транспорте|jail|30
+          1.15|Джетпак, шар|jail|30
+          1.16|AFK 30 секунд|kick|0
+          1.17|Урон своим|jail|30
+          1.18|Скины с плюсами|jail|30
+          1.19|Накрутка убийств|jail|60
+          1.20|Заход после 40 мин|jail|60
+          1.21|Ниже 5 уровня|spawn|0
+          1.22|Урон до старта|jail|60
+          1.23|Бронежилет|spawn|0
+          1.24|Отстранённая семья|spawn|0
+          1.25|Урон в красной зоне|warn|0
+          """.trimIndent().lines().map { l ->
+              val p = l.split("|")
+              Fam(p[0], p[1], p[2], p[3].toInt())
+          }
+
+          // FamWar: свои кнопки, по одной на строку: «/команда {id}» или «название|/команда»
+          val DEF_FAM = ""
+
           class Store(c: Context) {
               private val p = c.getSharedPreferences("s", Context.MODE_PRIVATE)
               fun templates(): Map<String, String> = DEF_T.mapValues { p.getString("t_" + it.key, it.value) ?: it.value }
@@ -213,12 +252,18 @@ jobs:
                   if (i in 1 until l.length - 1) l.substring(0, i).trim() to l.substring(i + 1).trim()
                   else l.split(" ")[0] to l
               }
+              fun famText(): String = p.getString("fam", DEF_FAM) ?: DEF_FAM
+              fun fam(): List<Pair<String, String>> = famText().lines().map { it.trim() }.filter { it.isNotEmpty() }.map { l ->
+                  val i = l.indexOf('|')
+                  if (i in 1 until l.length - 1) l.substring(0, i).trim() to l.substring(i + 1).trim()
+                  else l.split(" ")[0] to l
+              }
               fun count(): Int = p.getInt("cnt", 0)
               fun setCount(n: Int) { p.edit().putInt("cnt", n).apply() }
-              fun save(t: Map<String, String>, b: String, n: String, c: String) {
+              fun save(t: Map<String, String>, b: String, n: String, c: String, f: String) {
                   val e = p.edit()
                   t.forEach { (k, v) -> e.putString("t_$k", v) }
-                  e.putString("begin", b).putString("end", n).putString("cmds", c).apply()
+                  e.putString("begin", b).putString("end", n).putString("cmds", c).putString("fam", f).apply()
               }
               fun reset() { val n = p.getInt("cnt", 0); p.edit().clear().putInt("cnt", n).apply() }
           }
@@ -233,6 +278,7 @@ jobs:
           import android.inputmethodservice.InputMethodService
           import android.os.Build
           import android.view.Gravity
+          import android.view.HapticFeedbackConstants
           import android.view.KeyEvent
           import android.view.View
           import android.view.ViewGroup
@@ -268,6 +314,7 @@ jobs:
               private lateinit var list: LinearLayout
               private lateinit var idTv: TextView
               private val tabs = ArrayList<Button>()
+              private val dyn = ArrayList<Pair<Button, () -> String>>()
               private var compact = false
               private var tab = 0
               private var open = -1
@@ -276,8 +323,14 @@ jobs:
               private var begins: List<String> = emptyList()
               private var ends: List<String> = emptyList()
               private var cmds: List<Pair<String, String>> = emptyList()
+              private var fam: List<Pair<String, String>> = emptyList()
+              private lateinit var strip: LinearLayout
+              private var folded = false
+              private lateinit var stripId: TextView
               private var count = 0
               private var pmFlag = false
+              // что клавиатура сама вставила с момента последней отправки/очистки (поле игры может не отдавать текст)
+              private val draft = StringBuilder()
               private var letters = false
               private var ru = true
               private var shift = false
@@ -310,7 +363,7 @@ jobs:
                   gravity = if (left) Gravity.START or Gravity.CENTER_VERTICAL else Gravity.CENTER
                   layoutParams = LinearLayout.LayoutParams(0, if (h == -1) ViewGroup.LayoutParams.WRAP_CONTENT else dp(if (h == 0) unit else h), w)
                       .apply { setMargins(dp(2), dp(1), dp(2), dp(1)) }
-                  setOnClickListener { click() }
+                  setOnClickListener { it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP); click() }
               }
 
               private fun hrow(vararg v: View): LinearLayout = LinearLayout(this).apply {
@@ -334,10 +387,15 @@ jobs:
                   return s
               }
 
-              private fun commit(s: String) { currentInputConnection?.commitText(s, 1) }
+              private fun commit(s: String) {
+                  if (s.startsWith("/")) draft.setLength(0)
+                  draft.append(s)
+                  currentInputConnection?.commitText(s, 1)
+              }
 
               private fun deleteBack() {
                   val ic = currentInputConnection ?: return
+                  if (draft.isNotEmpty()) draft.deleteCharAt(draft.length - 1)
                   ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
                   ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
               }
@@ -357,12 +415,14 @@ jobs:
               // нажатие «Отправить» на сообщении с /pm считается сразу
               private fun sendEnter() {
                   val ic = currentInputConnection ?: return
-                  val wasPm = isPm(fieldText(ic))
+                  // считаем по тому, что вставила сама клавиатура, и по тексту поля, если игра его отдаёт
+                  val wasPm = isPm(draft.toString()) || isPm(fieldText(ic))
                   // false: выполнить действие поля, даже если оно помечено «Enter = новая строка»
                   if (!sendDefaultEditorAction(false)) {
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
                   }
+                  draft.setLength(0)
                   if (wasPm) { pmFlag = false; countOne() }
               }
 
@@ -385,6 +445,7 @@ jobs:
               private fun clearAll() {
                   val ic = currentInputConnection ?: return
                   pmFlag = false
+                  draft.setLength(0)
                   ic.beginBatchEdit()
                   ic.performContextMenuAction(android.R.id.selectAll)
                   ic.commitText("", 1)
@@ -392,7 +453,7 @@ jobs:
                   ic.endBatchEdit()
               }
 
-              private fun reload() { tpl = st.templates(); begins = st.begins(); ends = st.ends(); cmds = st.cmds(); count = st.count() }
+              private fun reload() { tpl = st.templates(); begins = st.begins(); ends = st.ends(); cmds = st.cmds(); fam = st.fam(); count = st.count() }
 
               private fun updateTabs() {
                   if (tabs.size > 1) tabs[1].text = "Ответы  " + count
@@ -415,8 +476,8 @@ jobs:
                   lp = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
                   tabs.clear()
-                  listOf("Наказания", "Ответы", "Команды").forEachIndexed { i, n ->
-                      tabs.add(btn(n, size = 14f) { setTab(i) })
+                  listOf("Наказания", "Ответы", "Команды", "FamWar").forEachIndexed { i, n ->
+                      tabs.add(btn(n, size = if (compact) 13f else 14f) { setTab(i) })
                   }
                   // долгое нажатие на «Ответы» обнуляет счётчик
                   tabs[1].setOnLongClickListener {
@@ -427,6 +488,7 @@ jobs:
                   updateTabs()
                   // «ABC» открывает буквенную раскладку прямо внутри этой клавиатуры
                   val abc = btn("ABC", w = 0.6f, size = 14f) { letters = true; applyMode() }
+                  val fold = btn("▼", w = 0.5f, size = 14f) { folded = true; applyMode() }
                   val send = btn("Отправить", SEND, w = 1.3f, size = 14f) { sendEnter() }
                   val erase = btn("Стереть", DANGER, w = 1.1f, size = 14f) { clearAll() }
                   idTv = TextView(this).apply {
@@ -441,10 +503,10 @@ jobs:
                   val clear = btn("C", w = 0.6f) { id.setLength(0); idChanged() }
 
                   if (compact) {
-                      main.addView(hrow(*tabs.toTypedArray(), idTv, back, clear, abc, erase, send))
+                      main.addView(hrow(*tabs.toTypedArray(), idTv, back, clear, abc, erase, send, fold))
                   } else {
                       main.addView(hrow(*tabs.toTypedArray(), abc))
-                      main.addView(hrow(idTv, back, clear, erase, send))
+                      main.addView(hrow(idTv, back, clear, erase, send, fold))
                   }
                   main.addView(hrow(*"1234567890".map { c ->
                       btn(c.toString(), h = unit - 2) { if (id.length < 7) id.append(c); idChanged() }
@@ -454,8 +516,28 @@ jobs:
                   val sv = ScrollView(this).apply { addView(list) }
                   main.addView(sv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (compact) 104 else 150)))
 
+                  stripId = TextView(this).apply {
+                      setTextColor(TXT); textSize = 15f; typeface = Typeface.MONOSPACE
+                      gravity = Gravity.CENTER
+                      background = GradientDrawable().apply { setColor(FIELD); setStroke(dp(1), LINE); cornerRadius = dp(9).toFloat() }
+                      layoutParams = LinearLayout.LayoutParams(0, dp(unit), 1.2f).apply { setMargins(dp(2), dp(1), dp(2), dp(1)) }
+                  }
+                  strip = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                  fun pun(label: String, cmd: String, t: Int, code: String) = btn(label, TINT[cmd] ?: SURF, size = 13f) { commit(fmt(cmd, t, code)) }
+                  val stripRow = hrow(
+                      btn("▲", w = 0.5f, size = 14f) { folded = false; applyMode() },
+                      stripId,
+                      btn("/az", size = 13f) { commit("/az") },
+                      btn("/gm", size = 13f) { commit("/gm") },
+                      btn("/clist", w = 1.1f, size = 13f) { commit("/clist") },
+                      pun("DM 30", "jail", 30, "DM"), pun("DM 60", "jail", 60, "DM"), pun("DB", "jail", 30, "DB"),
+                      btn("Стереть", DANGER, w = 1.1f, size = 13f) { clearAll() },
+                      btn("Отправить", SEND, w = 1.3f, size = 13f) { sendEnter() }
+                  )
+                  strip.addView(stripRow)
                   root.addView(main)
                   root.addView(lp)
+                  root.addView(strip)
                   idChanged()
                   setTab(tab)
                   applyMode()
@@ -465,17 +547,20 @@ jobs:
               override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
                   super.onStartInputView(info, restarting)
                   pmFlag = false
+                  draft.setLength(0)
                   if (::list.isInitialized) { reload(); updateTabs(); renderList() }
               }
 
               private fun applyMode() {
-                  main.visibility = if (letters) View.GONE else View.VISIBLE
-                  lp.visibility = if (letters) View.VISIBLE else View.GONE
+                  main.visibility = if (letters || folded) View.GONE else View.VISIBLE
+                  lp.visibility = if (letters && !folded) View.VISIBLE else View.GONE
+                  strip.visibility = if (folded) View.VISIBLE else View.GONE
+                  stripId.text = if (id.isEmpty()) "ID" else id.toString()
                   if (letters) renderLetters()
               }
 
               // ---------- буквенная раскладка ----------
-              private fun typeText(s: String) { currentInputConnection?.commitText(s, 1) }
+              private fun typeText(s: String) { draft.append(s); currentInputConnection?.commitText(s, 1) }
 
               private fun key(c: Char): Button {
                   val s = if (shift) c.uppercaseChar().toString() else c.toString()
@@ -513,7 +598,9 @@ jobs:
               private fun idChanged() {
                   idTv.text = if (id.isEmpty()) "ID" else id.toString()
                   idTv.setTextColor(if (id.isEmpty()) HINT else TXT)
-                  if (::list.isInitialized) renderList()
+                  if (::stripId.isInitialized) stripId.text = if (id.isEmpty()) "ID" else id.toString()
+                  // список не перерисовываем (это и было задержкой): обновляем только подписи команд с ID
+                  if (::list.isInitialized) dyn.forEach { (b, f) -> b.text = f() }
               }
 
               private fun setTab(t: Int) {
@@ -526,11 +613,13 @@ jobs:
               }
 
               private fun renderList() {
+                  dyn.clear()
                   list.removeAllViews()
                   when (tab) {
                       0 -> violations()
                       1 -> answers()
-                      else -> commands()
+                      2 -> commands()
+                      else -> famWar()
                   }
               }
 
@@ -545,8 +634,11 @@ jobs:
                           v.variants.forEach { acts ->
                               acts.forEach { a ->
                                   a.times().forEach { t ->
-                                      val c = fmt(a.cmd, t, v.code)
-                                      list.addView(hrow(btn(c, TINT[a.cmd] ?: SURF, size = 16f, left = true) { commit(c) }))
+                                      val b = btn(fmt(a.cmd, t, v.code), TINT[a.cmd] ?: SURF, size = 16f, left = true) {
+                                          commit(fmt(a.cmd, t, v.code))
+                                      }
+                                      dyn.add(b to { fmt(a.cmd, t, v.code) })
+                                      list.addView(hrow(b))
                                   }
                               }
                           }
@@ -572,6 +664,30 @@ jobs:
 
               private fun answers() {
                   list.addView(hrow(column("Начало", begins), column("Конец", ends)))
+              }
+
+              // правила семейных мероприятий: два столбца, одно нажатие = готовая команда
+              private fun famWar() {
+                  FAM_RULES.chunked(2).forEach { pair ->
+                      val v = ArrayList<View>()
+                      pair.forEach { r ->
+                          val unitTxt = if (r.t == 0) r.cmd else r.cmd + " " + r.t
+                          v.add(btn(r.code + " " + r.desc + "\n" + unitTxt, TINT[r.cmd] ?: SURF, size = 13f, h = -1, left = true) {
+                              commit(fmt(r.cmd, r.t, r.code + " FW"))
+                          })
+                      }
+                      if (pair.size == 1) v.add(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, dp(unit), 1f) })
+                      list.addView(hrow(*v.toTypedArray()))
+                  }
+                  val cols = if (compact) 8 else 4
+                  fam.chunked(cols).forEach { row ->
+                      val v = ArrayList<View>()
+                      row.forEach { (name, c) -> v.add(btn(name, size = 14f) { commit(fmtCmd(c)) }) }
+                      repeat(cols - row.size) {
+                          v.add(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, dp(unit), 1f) })
+                      }
+                      list.addView(hrow(*v.toTypedArray()))
+                  }
               }
 
               private fun commands() {
@@ -629,6 +745,9 @@ jobs:
                   root.addView(tv("3. Команды, по одной на строку: /команда {id} (или название|/команда). Если ID не введён, команда вставится без номера."))
                   val cmds = EditText(this).apply { setText(st.cmdsText()); minLines = 5; gravity = Gravity.TOP }
                   root.addView(cmds)
+                  root.addView(tv("FamWar: свои кнопки, по одной на строку: /команда {id} (или название|/команда)"))
+                  val fam = EditText(this).apply { setText(st.famText()); minLines = 5; gravity = Gravity.TOP }
+                  root.addView(fam)
                   root.addView(tv("4. Шаблоны команд ({id} ID, {t} срок, {r} причина или текст ответа)"))
                   val tpl = st.templates()
                   val fields = DEF_T.keys.associateWith { k ->
@@ -637,7 +756,7 @@ jobs:
                   fields.forEach { (k, e) -> root.addView(tv(k)); root.addView(e) }
                   root.addView(bt("Сохранить") {
                       val t = fields.mapValues { en -> en.value.text.toString().ifBlank { DEF_T.getValue(en.key) } }
-                      st.save(t, begins.text.toString(), ends.text.toString(), cmds.text.toString())
+                      st.save(t, begins.text.toString(), ends.text.toString(), cmds.text.toString(), fam.text.toString())
                       Toast.makeText(this, "Сохранено", Toast.LENGTH_SHORT).show()
                   })
                   root.addView(bt("Сбросить всё") { st.reset(); recreate() })
