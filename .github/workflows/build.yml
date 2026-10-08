@@ -174,6 +174,9 @@ jobs:
           """.trimIndent()
 
           val DEF_CMDS = """
+          /az
+          /gm
+          /clist
           /sp {id}
           /spoff
           /spawn {id}
@@ -209,12 +212,14 @@ jobs:
                   if (i in 1 until l.length - 1) l.substring(0, i).trim() to l.substring(i + 1).trim()
                   else l.split(" ")[0] to l
               }
+              fun count(): Int = p.getInt("cnt", 0)
+              fun setCount(n: Int) { p.edit().putInt("cnt", n).apply() }
               fun save(t: Map<String, String>, a: String, c: String) {
                   val e = p.edit()
                   t.forEach { (k, v) -> e.putString("t_$k", v) }
                   e.putString("ans", a).putString("cmds", c).apply()
               }
-              fun reset() { p.edit().clear().apply() }
+              fun reset() { val n = p.getInt("cnt", 0); p.edit().clear().putInt("cnt", n).apply() }
           }
           EOF
           cat > app/src/main/java/com/grandmobile/admintools/AdminKeyboard.kt <<'EOF'
@@ -236,6 +241,7 @@ jobs:
           import android.widget.LinearLayout
           import android.widget.ScrollView
           import android.widget.TextView
+          import android.widget.Toast
 
           // тёплая палитра: эспрессо, крем, янтарь и терракота
           private val BG = 0xFF1C1512.toInt()
@@ -266,9 +272,11 @@ jobs:
               private var tpl: Map<String, String> = DEF_T
               private var ans: List<Pair<String, String>> = emptyList()
               private var cmds: List<Pair<String, String>> = emptyList()
+              private var count = 0
+              private var pendingAnswer = false
 
               private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-              private val unit get() = if (compact) 32 else 38
+              private val unit get() = if (compact) 35 else 42
 
               override fun onEvaluateFullscreenMode(): Boolean = false
 
@@ -278,15 +286,15 @@ jobs:
                       SEND -> GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xFFEE7A45.toInt(), 0xFFD9553A.toInt()))
                       else -> GradientDrawable().apply { setColor(col); setStroke(dp(1), LINE) }
                   }
-                  g.cornerRadius = dp(8).toFloat()
+                  g.cornerRadius = dp(9).toFloat()
                   return RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), g, null)
               }
 
               private fun btn(
-                  t: String, col: Int = SURF, w: Float = 1f, size: Float = 14f, h: Int = 0,
+                  t: String, col: Int = SURF, w: Float = 1f, size: Float = 15f, h: Int = 0,
                   left: Boolean = false, click: () -> Unit
               ): Button = Button(this).apply {
-                  text = t; isAllCaps = false; textSize = if (compact) size - 1f else size
+                  text = t; isAllCaps = false; textSize = size
                   setTextColor(if (col == ACC || col == SEND) DARK else TXT); background = bg(col)
                   stateListAnimator = null
                   minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
@@ -318,9 +326,9 @@ jobs:
                   return s
               }
 
-              private fun commit(s: String) { currentInputConnection?.commitText(s, 1) }
+              private fun commit(s: String) { pendingAnswer = false; currentInputConnection?.commitText(s, 1) }
 
-              // одно нажатие = одна отправка (как клавиша Enter)
+              // одно нажатие = одна отправка; ответ игроку после отправки прибавляет 1 к счётчику
               private fun sendEnter() {
                   val ic = currentInputConnection ?: return
                   // false: выполнить действие поля, даже если оно помечено «Enter = новая строка»
@@ -328,11 +336,18 @@ jobs:
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
                       ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
                   }
+                  if (pendingAnswer) {
+                      count += 1
+                      st.setCount(count)
+                      pendingAnswer = false
+                      updateTabs()
+                  }
               }
 
               // стирает всё, что написано в поле ввода (не только вставленное клавиатурой)
               private fun clearAll() {
                   val ic = currentInputConnection ?: return
+                  pendingAnswer = false
                   ic.beginBatchEdit()
                   ic.performContextMenuAction(android.R.id.selectAll)
                   ic.commitText("", 1)
@@ -340,7 +355,11 @@ jobs:
                   ic.endBatchEdit()
               }
 
-              private fun reload() { tpl = st.templates(); ans = st.answers(); cmds = st.cmds() }
+              private fun reload() { tpl = st.templates(); ans = st.answers(); cmds = st.cmds(); count = st.count() }
+
+              private fun updateTabs() {
+                  if (tabs.size > 1) tabs[1].text = "Ответы  " + count
+              }
 
               override fun onCreateInputView(): View {
                   reload()
@@ -352,19 +371,26 @@ jobs:
                   }
                   tabs.clear()
                   listOf("Наказания", "Ответы", "Команды").forEachIndexed { i, n ->
-                      tabs.add(btn(n, size = 13f) { setTab(i) })
+                      tabs.add(btn(n, size = 14f) { setTab(i) })
                   }
-                  val abc = btn("ABC", w = 0.6f, size = 13f) {
+                  // долгое нажатие на «Ответы» обнуляет счётчик
+                  tabs[1].setOnLongClickListener {
+                      count = 0; st.setCount(0); updateTabs()
+                      Toast.makeText(this, "Счётчик сброшен", Toast.LENGTH_SHORT).show()
+                      true
+                  }
+                  updateTabs()
+                  val abc = btn("ABC", w = 0.6f, size = 14f) {
                       val ok = if (Build.VERSION.SDK_INT >= 28) switchToPreviousInputMethod() else false
                       if (!ok) (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
                   }
-                  val send = btn("Отправить", SEND, w = 1.3f, size = 13f) { sendEnter() }
-                  val erase = btn("Стереть", DANGER, w = 1.1f, size = 13f) { clearAll() }
+                  val send = btn("Отправить", SEND, w = 1.3f, size = 14f) { sendEnter() }
+                  val erase = btn("Стереть", DANGER, w = 1.1f, size = 14f) { clearAll() }
                   idTv = TextView(this).apply {
-                      setTextColor(TXT); textSize = if (compact) 15f else 17f; typeface = Typeface.MONOSPACE
+                      setTextColor(TXT); textSize = if (compact) 17f else 19f; typeface = Typeface.MONOSPACE
                       gravity = Gravity.CENTER_VERTICAL
                       setPadding(dp(12), 0, dp(12), 0)
-                      background = GradientDrawable().apply { setColor(FIELD); setStroke(dp(1), LINE); cornerRadius = dp(8).toFloat() }
+                      background = GradientDrawable().apply { setColor(FIELD); setStroke(dp(1), LINE); cornerRadius = dp(9).toFloat() }
                       layoutParams = LinearLayout.LayoutParams(0, dp(unit), if (compact) 1.4f else 1.6f)
                           .apply { setMargins(dp(2), dp(1), dp(2), dp(1)) }
                   }
@@ -378,12 +404,12 @@ jobs:
                       root.addView(hrow(idTv, back, clear, erase, send))
                   }
                   root.addView(hrow(*"1234567890".map { c ->
-                      btn(c.toString(), h = unit - 4) { if (id.length < 7) id.append(c); idChanged() }
+                      btn(c.toString(), h = unit - 2) { if (id.length < 7) id.append(c); idChanged() }
                   }.toTypedArray()))
 
                   list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                   val sv = ScrollView(this).apply { addView(list) }
-                  root.addView(sv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (compact) 92 else 130)))
+                  root.addView(sv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (compact) 104 else 150)))
 
                   idChanged()
                   setTab(tab)
@@ -392,7 +418,7 @@ jobs:
 
               override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
                   super.onStartInputView(info, restarting)
-                  if (::list.isInitialized) { reload(); renderList() }
+                  if (::list.isInitialized) { reload(); updateTabs(); renderList() }
               }
 
               private fun idChanged() {
@@ -431,7 +457,7 @@ jobs:
                               acts.forEach { a ->
                                   a.times().forEach { t ->
                                       val c = fmt(a.cmd, t, v.code)
-                                      list.addView(hrow(btn(c, TINT[a.cmd] ?: SURF, size = 15f, left = true) { commit(c) }))
+                                      list.addView(hrow(btn(c, TINT[a.cmd] ?: SURF, size = 16f, left = true) { commit(c) }))
                                   }
                               }
                           }
@@ -442,10 +468,13 @@ jobs:
               private fun answers() {
                   val groups = listOf("") + ans.map { it.first }.distinct()
                   list.addView(hrow(*groups.map { g ->
-                      btn(if (g.isEmpty()) "Все" else g, if (grp == g) ACC else SURF, size = 13f) { grp = g; renderList() }
+                      btn(if (g.isEmpty()) "Все" else g, if (grp == g) ACC else SURF, size = 14f) { grp = g; renderList() }
                   }.toTypedArray()))
                   ans.filter { grp.isEmpty() || it.first == grp }.forEach { (_, text) ->
-                      list.addView(hrow(btn(text, SURF, size = 13f, h = if (compact) 44 else 54, left = true) { commit(fmt("ans", 0, text)) }))
+                      list.addView(hrow(btn(text, SURF, size = 14f, h = if (compact) 50 else 60, left = true) {
+                          commit(fmt("ans", 0, text))
+                          pendingAnswer = true
+                      }))
                   }
               }
 
@@ -453,7 +482,7 @@ jobs:
                   val cols = if (compact) 8 else 4
                   cmds.chunked(cols).forEach { row ->
                       val v = ArrayList<View>()
-                      row.forEach { (name, c) -> v.add(btn(name, size = 13f) { commit(fmtCmd(c)) }) }
+                      row.forEach { (name, c) -> v.add(btn(name, size = 14f) { commit(fmtCmd(c)) }) }
                       repeat(cols - row.size) {
                           v.add(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, dp(unit), 1f) })
                       }
